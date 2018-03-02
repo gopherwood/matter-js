@@ -335,6 +335,8 @@ var Axes = require('../geometry/Axes');
      * @param {vector[]} vertices
      */
     Body.setVertices = function(body, vertices) {
+        var original = body._original || body;
+
         // change vertices
         if (vertices[0].body === body) {
             body.vertices = vertices;
@@ -345,14 +347,14 @@ var Axes = require('../geometry/Axes');
         // update properties
         body.axes = Axes.fromVertices(body.vertices);
         body.area = Vertices.area(body.vertices);
-        Body.setMass(body, body.density * body.area);
+        Body.setMass(body, original.density * body.area);
 
         // orient vertices around the centre of mass at origin (0, 0)
         var centre = Vertices.centre(body.vertices);
         Vertices.translate(body.vertices, centre, -1);
 
         // update inertia while vertices are at origin (0, 0)
-        Body.setInertia(body, Body._inertiaScale * Vertices.inertia(body.vertices, body.mass));
+        Body.setInertia(body, Body._inertiaScale * Vertices.inertia(body.vertices, original.mass));
 
         // update geometry
         Vertices.translate(body.vertices, body.position);
@@ -574,7 +576,7 @@ var Axes = require('../geometry/Axes');
         if (body.parts.length > 1) {
             body.area = totalArea;
 
-            Body.setMass(body, body.density * totalArea);
+            Body.setMass(body, original.density * totalArea);
             Body.setInertia(body, totalInertia);
         }
 
