@@ -126,6 +126,8 @@ var Axes = require('../geometry/Axes');
      * @param {} [options]
      */
     var _initProperties = function(body, options) {
+        var original = null;
+
         options = options || {};
 
         // init required properties (order is important)
@@ -145,11 +147,12 @@ var Axes = require('../geometry/Axes');
         Bounds.update(body.bounds, body.vertices, body.velocity);
 
         // allow options to override the automatically calculated properties
+        original = body._original || body;
         Body.set(body, {
             axes: options.axes || body.axes,
             area: options.area || body.area,
-            mass: options.mass || body.mass,
-            inertia: options.inertia || body.inertia
+            mass: options.mass || original.mass,
+            inertia: options.inertia || original.inertia
         });
 
         // render properties
@@ -281,13 +284,15 @@ var Axes = require('../geometry/Axes');
      * @param {number} mass
      */
     Body.setMass = function(body, mass) {
-        var moment = body.inertia / (body.mass / 6);
-        body.inertia = moment * (mass / 6);
-        body.inverseInertia = 1 / body.inertia;
+        var original = body._original || body,
+            moment = original.inertia / (original.mass / 6);
 
-        body.mass = mass;
-        body.inverseMass = 1 / body.mass;
-        body.density = body.mass / body.area;
+        original.inertia = moment * (mass / 6);
+        original.inverseInertia = 1 / original.inertia;
+
+        original.mass = mass;
+        original.inverseMass = 1 / original.mass;
+        original.density = original.mass / body.area;
     };
 
     /**
@@ -297,8 +302,10 @@ var Axes = require('../geometry/Axes');
      * @param {number} density
      */
     Body.setDensity = function(body, density) {
+        var original = body._original || body;
+
         Body.setMass(body, density * body.area);
-        body.density = density;
+        original.density = density;
     };
 
     /**
@@ -309,8 +316,10 @@ var Axes = require('../geometry/Axes');
      * @param {number} inertia
      */
     Body.setInertia = function(body, inertia) {
-        body.inertia = inertia;
-        body.inverseInertia = 1 / body.inertia;
+        var original = body._original || body;
+
+        original.inertia = inertia;
+        original.inverseInertia = 1 / original.inertia;
     };
 
     /**
@@ -525,13 +534,15 @@ var Axes = require('../geometry/Axes');
      * @param {vector} [point]
      */
     Body.scale = function(body, scaleX, scaleY, point) {
-        var totalArea = 0,
+        var original = body._original || body,
+            totalArea = 0,
             totalInertia = 0;
 
         point = point || body.position;
 
         for (var i = 0; i < body.parts.length; i++) {
-            var part = body.parts[i];
+            var part = body.parts[i],
+                originalPart = part._original || part;
 
             // scale vertices
             Vertices.scale(part.vertices, scaleX, scaleY, point);
@@ -539,16 +550,16 @@ var Axes = require('../geometry/Axes');
             // update properties
             part.axes = Axes.fromVertices(part.vertices);
             part.area = Vertices.area(part.vertices);
-            Body.setMass(part, body.density * part.area);
+            Body.setMass(part, original.density * part.area);
 
             // update inertia (requires vertices to be at origin)
             Vertices.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
-            Body.setInertia(part, Body._inertiaScale * Vertices.inertia(part.vertices, part.mass));
+            Body.setInertia(part, Body._inertiaScale * Vertices.inertia(part.vertices, originalPart.mass));
             Vertices.translate(part.vertices, { x: part.position.x, y: part.position.y });
 
             if (i > 0) {
                 totalArea += part.area;
-                totalInertia += part.inertia;
+                totalInertia += originalPart.inertia;
             }
 
             // scale position
@@ -563,10 +574,8 @@ var Axes = require('../geometry/Axes');
         if (body.parts.length > 1) {
             body.area = totalArea;
 
-            if (!body.isStatic) {
-                Body.setMass(body, body.density * totalArea);
-                Body.setInertia(body, totalInertia);
-            }
+            Body.setMass(body, body.density * totalArea);
+            Body.setInertia(body, totalInertia);
         }
 
         // handle circles
